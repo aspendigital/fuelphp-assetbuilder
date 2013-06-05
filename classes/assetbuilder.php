@@ -50,6 +50,9 @@ class AssetBuilder
 	
 	/** @var string */
 	protected static $less_dir = 'css/less/';
+
+	/** @var string */
+	protected static $image_dir = 'images/';
 	
 	/** @var string */
 	protected static $cache_dir = 'assets/cache/';
@@ -95,6 +98,7 @@ class AssetBuilder
 		static::$js_dir  = \Config::get('assetbuilder.js_dir', static::$js_dir);
 		static::$css_dir  = \Config::get('assetbuilder.css_dir', static::$css_dir);
 		static::$less_dir  = \Config::get('assetbuilder.less_dir', static::$less_dir);
+		static::$image_dir  = \Config::get('assetbuilder.image_dir', static::$image_dir);
 		static::$cache_dir  = \Config::get('assetbuilder.cache_dir', static::$cache_dir);
 		static::$deps_max_depth = \Config::get('assetbuilder.deps_max_depth', static::$deps_max_depth);
 	}
@@ -552,6 +556,30 @@ class AssetBuilder
         return $group . md5($key.$salt) . '.' . $type;
 	}
 	
+	/**
+	 * @return string
+	 */
+	public static function get_js_url()
+	{
+		return self::$base_url . self::$asset_dir . self::$js_dir;
+	}
+
+	/**
+	 * @return string
+	 */
+	public static function get_css_url()
+	{
+		return self::$base_url . self::$asset_dir . self::$css_dir;
+	}
+
+	/**
+	 * @return string
+	 */
+	public static function get_image_url()
+	{
+		return self::$base_url . self::$asset_dir . self::$image_dir;
+	}
+
 	/**
 	 * Cleares all cache files last modified before $before.
 	 *
