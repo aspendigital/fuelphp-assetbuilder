@@ -167,6 +167,17 @@ class AssetBuilder
 	}
 
 	/**
+	 * Add a JS function call, encoding parameters for display
+	 */
+	public static function js_inline_function()
+	{
+		$args = func_get_args();
+		$function = array_shift($args);
+		$args = array_map('json_encode', $args);
+		static::js_inline("$function(".join(',', $args).");");
+	}
+
+	/**
 	 * Add a string containing css, which can be printed inline with
 	 * css_render_inline().
 	 *
