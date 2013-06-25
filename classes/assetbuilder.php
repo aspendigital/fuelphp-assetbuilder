@@ -298,7 +298,7 @@ class AssetBuilder
 		if (!is_array($groups))
 			$groups = array($groups);
 		
-		$groups = static::resolve_deps($type, $groups);
+		$groups = static::resolve_deps($groups);
 		
 		$files = array();
 		foreach ($groups as $group)
@@ -319,14 +319,13 @@ class AssetBuilder
 	 * Duplicate group names are not a problem, as a group is disabled when it's
 	 * rendered.
 	 *
-	 * @param string $type 'js' /or/ 'css'
 	 * @param array $group_names Array of group names to check
 	 * @param boolean $force if set to true, don't ignore disabled bottom-level groups
 	 * @param int $depth Used by this function to check for potentially infinite recursion
 	 * @return array List of group names with deps resolved
 	 */
 
-	protected static function resolve_deps($type, $group_names, $force=false, $depth=0)
+	protected static function resolve_deps($group_names, $force=false, $depth=0)
 	{
 		if ($depth > static::$deps_max_depth)
 		{
@@ -338,24 +337,24 @@ class AssetBuilder
 		foreach ($group_names as $i => $group_name)
 		{
 			// Don't pay attention to bottom-level groups which are disabled
-			if (empty(static::$groups[$type][$group_name]['enabled']) && $depth == 0 && !$force)
+			if (empty(static::$groups[$group_name]['enabled']) && $depth == 0 && !$force)
 				continue;
 			
 			// Otherwise, enable the group. Fairly obvious, as the whole point of
 			// deps is to render disabled groups
-			static::asset_enabled($type, $group_name, true);
-			if (empty(static::$groups[$type][$group_name]['deps']))
+			static::asset_enabled($group_name, true);
+			if (empty(static::$groups[$group_name]['deps']))
 				$deps = false;
 			else
 			{
-				$deps = static::$groups[$type][$group_name]['deps'];
+				$deps = static::$groups[$group_name]['deps'];
 				if (!is_array($deps))
 					$deps = array($deps);
 			}
 			
 			if (!empty($deps))
 			{
-				array_splice($group_names, $i, 0, static::resolve_deps($type, static::$groups[$type][$group_name]['deps'], $force, $depth+1));
+				array_splice($group_names, $i, 0, static::resolve_deps($deps, $force, $depth+1));
 			}
 		}
 		return array_unique($group_names);
@@ -407,7 +406,7 @@ class AssetBuilder
 		{
 			foreach ($groups as $group=>$file)
 			{
-				$all_deps[$type][$group] = static::resolve_deps($type, array($group), true);
+				$all_deps[$type][$group] = static::resolve_deps(array($group), true);
 				foreach ($all_deps[$type][$group] as $group_i)
 					$save_groups[$type][$group]['compiled_files'][] = $files[$type][$group_i];
 				
