@@ -80,9 +80,15 @@ class AssetBuilder
 		else
 		{
 			if (function_exists('apc_fetch'))
-				static::$groups = apc_fetch('asset:'.APPPATH);
+				$config = apc_fetch('asset:'.APPPATH);
 			if (empty(static::$groups))
-				static::load_new_production_config();
+				$config = static::load_new_production_config();
+			
+			static::$asset_dir = $config['asset_dir'];
+			static::$js_dir = $config['js_dir'];
+			static::$css_dir = $config['css_dir'];
+			static::$image_dir = $config['image_dir'];
+			static::$groups = $config['groups'];
 		}
 	}
 	
@@ -105,14 +111,17 @@ class AssetBuilder
 	
 	/**
 	 * Load serialized group information and store to APC if possible
+	 * @return array
 	 */
 	public static function load_new_production_config()
 	{
 		static::load_development_config();
 		
-		static::$groups = unserialize(file_get_contents(DOCROOT.static::$cache_dir.'asset.cache'));
+		$info = unserialize(file_get_contents(DOCROOT.static::$cache_dir.'asset.cache'));
 		if (function_exists('apc_store'))
-			apc_store('asset:'.APPPATH, static::$groups);
+			apc_store('asset:'.APPPATH, $info);
+		
+		return $info;
 	}
 
 	/**
@@ -378,7 +387,7 @@ class AssetBuilder
 			if (empty(static::$groups[$group]['enabled']) && !$force)
 				continue;
 		
-			$files = array_merge($files, static::$groups[$group]['compiled_files']);
+			$files = array_merge($files, static::$groups[$group][$type]);
 		}
 		
 		return $files;
@@ -391,29 +400,30 @@ class AssetBuilder
 	{
 		static::load_development_config();
 		
-		$files = array();
-		foreach (static::$groups as $type=>$groups)
+		$group_files = array();
+		$all_files = array();
+		foreach (static::$groups as $group=>$info)
 		{
-			foreach ($groups as $group=>$info)
-				$files[$type][$group] = ($type == 'js') ? static::build_js($group, true) : static::build_css($group, true);
+			$group_files[$group]['js'] = (empty($info['js'])) ? array() : static::build_js($group, true);
+			$group_files[$group]['css'] = (empty($info['css'])) ? array() : static::build_css($group, true);
+			$all_files = array_merge($all_files, $group_files[$group]['js'], $group_files[$group]['css']);
 		}
 		
 		// Now with rendered files, save config information so that not even dependency resolution is necessary for production
-		$original_groups = \Config::get('assetbuilder.groups');
 		$save_groups = array();
 		$all_deps = array();
-		foreach ($files as $type=>$groups)
+		foreach (static::$groups as $group=>$info)
 		{
-			foreach ($groups as $group=>$file)
+			$all_deps[$group] = static::resolve_deps(array($group), true);
+			
+			foreach (array('js', 'css') as $type)
 			{
-				$all_deps[$type][$group] = static::resolve_deps(array($group), true);
-				foreach ($all_deps[$type][$group] as $group_i)
-					$save_groups[$type][$group]['compiled_files'][] = $files[$type][$group_i];
+				$save_groups[$group][$type] = array();
 				
-				$save_groups[$type][$group] = array(
-						'compiled_files' => array_unique($save_groups[$type][$group]['compiled_files']),
-						'enabled' => (empty($original_groups[$type][$group]['enabled'])) ? false : true
-					);
+				foreach ($all_deps[$group] as $group_i)
+					$save_groups[$group][$type] = array_merge($save_groups[$group][$type], $group_files[$group_i][$type]);
+				
+				$save_groups[$group][$type] = array_unique($save_groups[$group][$type]);
 			}
 		}
 		
@@ -421,11 +431,18 @@ class AssetBuilder
 		if (function_exists('apc_delete'))
 			apc_delete('asset:'.APPPATH);
 		
-		/* Clear cache of anything we didn't just generate */
-		static::$clear_cache_blacklist = array_map('basename', array_merge(array_values($files['js']), array_values($files['css'])));
+		/* Clear cache of anything we didn't just generate */		
+		static::$clear_cache_blacklist = array_map('basename', $all_files);
 		static::clear_cache();
 
-		file_put_contents(DOCROOT.static::$cache_dir.'asset.cache', serialize($save_groups));
+		/* Include other config items in cached information */
+		file_put_contents(DOCROOT.static::$cache_dir.'asset.cache', serialize(array(
+				'groups'=>$save_groups,
+				'asset_dir'=>static::$asset_dir,
+				'js_dir'=>static::$js_dir,
+				'css_dir'=>static::$js_dir,
+				'image_dir'=>static::$image_dir
+			)));
 		
 		//var_dump($all_deps);
 		//var_dump($save_groups);
@@ -448,7 +465,7 @@ class AssetBuilder
 		foreach ($group_info['js'] as $file_name)
 		{
 			if (static::is_local($file_name))
-				$js->add ( new \Assetic\Asset\FileAsset(static::$asset_dir . static::$js_dir . $file_name) );
+				$js->add ( new \Assetic\Asset\FileAsset(DOCROOT . static::$asset_dir . static::$js_dir . $file_name) );
 			else
 				$remote_files[] = $file_name;
 		}
